@@ -1,4 +1,6 @@
 #ifndef _THREADPOOL_H_
+#define _THREADPOOL_H_
+
 #include <iostream>
 #include <thread>
 #include <mutex>
@@ -22,7 +24,7 @@ typedef struct {
 class comp {
 public:
 	bool operator()(priority_& a, priority_& b) {
-		return a.priority > b.priority;
+		return a.priority < b.priority;
 	}
 };
 
@@ -66,9 +68,11 @@ threadPool::threadPool(int count) : thread_count(count), _stop(false){
 }
 
 threadPool::~threadPool(){
-	std::unique_lock<std::mutex> lock(mut);
-	_stop = true;
-	lock.unlock();
+	{
+		std::unique_lock<std::mutex> lock(mut);
+		_stop = true;
+	}
+	cv.notify_all();
 
 	for (int i = 0; i < thread_count; ++i)
 		worker_thread[i].join();
@@ -80,7 +84,6 @@ void actual_task() {
 }
 void threadPool::enqueue_task(priority_& priorities_task) {
 	std::unique_lock<std::mutex> lock(mut);
-	priorities_task.task = actual_task;
 	this->tasks.emplace(priorities_task);
 	cv.notify_one();
 	lock.unlock();
